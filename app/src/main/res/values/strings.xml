@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Dayline</string>
+    <string name="app_wordmark">DAYLINE</string>
+    <string name="build_identity">Dayline %1$s · build %2$d\nCommit %3$s · %4$s</string>
+    <string name="today_timer">%1$s</string>
+    <string name="over_goal_timer">Over goal · %1$s</string>
+    <string name="apps_selected">Selected: %1$d</string>
+    <string name="position_preview">Position with preview</string>
+    <string name="done_positioning">Done positioning</string>
+</resources>

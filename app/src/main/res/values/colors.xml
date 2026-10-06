@@ -1,0 +1,11 @@
+<resources>
+    <color name="dayline_background">#101D32</color>
+    <color name="dayline_surface">#1C304A</color>
+    <color name="dayline_primary">#8EE0E5</color>
+    <color name="dayline_text">#F2F7F7</color>
+    <color name="dayline_warning">#F7BD72</color>
+    <color name="dayline_muted">#A6B9CC</color>
+    <color name="dayline_control">#273E58</color>
+    <color name="dayline_ripple">#308EE0E5</color>
+    <color name="dayline_outline">#5A93A2</color>
+</resources>

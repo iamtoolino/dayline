@@ -1,0 +1,24 @@
+.gradle/
+.kotlin/
+.gradle-user-home/
+local.properties
+**/build/
+.idea/
+*.iml
+.DS_Store
+
+# Local credentials, signing material, and generated diagnostics
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+keystore.properties
+*.apk
+*.aab
+*.log
+captures/
+.externalNativeBuild/
+.cxx/
