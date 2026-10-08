@@ -25,12 +25,6 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", false)
         set(value) { prefs.edit().putBoolean("enabled", value).apply() }
-    var vibration: Boolean
-        get() = prefs.getBoolean("vibration", false)
-        set(value) { prefs.edit().putBoolean("vibration", value).apply() }
-    var tenMinuteTicks: Boolean
-        get() = prefs.getBoolean("tenMinuteTicks", false)
-        set(value) { prefs.edit().putBoolean("tenMinuteTicks", value).apply() }
     var textSize: Int
         get() = prefs.getInt("textSize", 16)
         set(value) { prefs.edit().putInt("textSize", value).apply() }
@@ -56,8 +50,6 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
         }
         editor.apply()
     }
-    fun warned(day: String) = prefs.getBoolean("budgetWarned:$day", false)
-    fun markWarned(day: String) { prefs.edit().putBoolean("budgetWarned:$day", true).apply() }
     fun history(): Map<String, Map<String, Long>> {
         val days = sortedMapOf<String, MutableMap<String, Long>>(reverseOrder())
         prefs.all.forEach { (key, value) ->
@@ -70,7 +62,7 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
     }
     fun clearUsage() {
         val editor = prefs.edit()
-        prefs.all.keys.filter { it.startsWith("usage:") || it.startsWith("warned:") || it.startsWith("daily:") || it.startsWith("budgetWarned:") }.forEach(editor::remove)
+        prefs.all.keys.filter { it.startsWith("usage:") || it.startsWith("daily:") }.forEach(editor::remove)
         editor.apply()
     }
 }

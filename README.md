@@ -12,8 +12,7 @@ asks you to extend a timer before continuing.
 
 - One shared daily counter across selected apps, resetting at local midnight.
 - A draggable floating timer with adjustable text size and opacity.
-- An optional daily limit, warning color, and once-per-day vibration.
-- Optional gentle vibration at each ten minutes of combined daily usage, with test buttons.
+- An optional daily limit with a visual “Over goal” warning.
 - Searchable app selection with icons and a separate daily History screen.
 - A dark navy and cyan design with an adaptive, themed launcher icon.
 - Local settings and history, with no account or network access.
@@ -28,13 +27,6 @@ The timer appears in selected apps and hides when you leave them or lock the scr
 Android requires a foreground-service notification while monitoring. It is static
 and silent; Android 13+ lets you hide drawer notifications in system settings while
 tracking continues. Android still lists the service under active apps.
-
-Reminders use the phone’s Notification vibration category and respect Silent mode
-and Do Not Disturb.
-The ten-minute option is off by default; enabling it starts with the next milestone.
-App switches and service restarts do not replay old ticks. A limit warning takes
-priority when it coincides with a ten-minute tick. Test buttons do not alter usage
-or consume the daily warning.
 
 ## Build from source
 
@@ -77,7 +69,7 @@ inside the app. No Accessibility Service is required.
 The implementation uses native Android views, a foreground tracking service,
 local preferences, and a small usage ledger. Unit tests cover midnight, daylight-saving transitions, invalid
 intervals, and duration formatting; instrumentation tests cover combined accounting,
-warning persistence, history migration, and deletion using isolated storage.
+settings persistence, history migration, and deletion using isolated storage.
 
 ## License
 

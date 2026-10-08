@@ -16,13 +16,6 @@ class TrackerStoreTest {
     @Before fun setup() { prefs.edit().clear().commit() }
     @After fun cleanup() { prefs.edit().clear().commit() }
 
-    @Test fun reminderPreferenceSurvivesRestartAndHistoryDeletion() {
-        val store = TrackerStore(context, name)
-        assertFalse(store.tenMinuteTicks)
-        store.tenMinuteTicks = true
-        store.clearUsage()
-        assertTrue(TrackerStore(context, name).tenMinuteTicks)
-    }
     @Test fun upgradePreservesAndCombinesExistingHistoryExactlyOnce() {
         val day = LocalDate.now().toString()
         prefs.edit().putLong("usage:$day:app.a", 30_000).putLong("usage:$day:app.b", 20_000)
@@ -43,16 +36,15 @@ class TrackerStoreTest {
         assertEquals(5000L, store.combinedToday())
         assertEquals(setOf("app.b"), store.selected)
     }
-    @Test fun oneSharedWarningSurvivesRestartAndHistoryDeletionPreservesSettings() {
+    @Test fun historyDeletionPreservesSettingsAcrossRestart() {
         val store = TrackerStore(context, name)
-        val day = LocalDate.now().toString()
         store.setSelected(setOf("app.a", "app.b")); store.dailyLimitMinutes = 30
-        assertFalse(store.warned(day))
-        store.markWarned(day)
+        val noon = LocalDate.now().atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        store.add("app.a", noon, noon + 5000)
         val restarted = TrackerStore(context, name)
-        assertTrue(restarted.warned(day))
+        assertEquals(5000L, restarted.combinedToday())
         restarted.clearUsage()
-        assertFalse(restarted.warned(day))
+        assertTrue(restarted.history().isEmpty())
         assertEquals(0L, restarted.combinedToday())
         assertEquals(30, restarted.dailyLimitMinutes)
         assertEquals(setOf("app.a", "app.b"), restarted.selected)

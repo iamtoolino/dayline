@@ -12,7 +12,6 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.widget.*
-import java.time.LocalDate
 
 class MainActivity : TrackerActivity() {
     private lateinit var store: TrackerStore
@@ -62,16 +61,6 @@ class MainActivity : TrackerActivity() {
         body.addView(apps)
         section(body, "DAILY LIMIT")
         body.addView(setting("One shared budget", if (store.dailyLimitMinutes == 0) "No limit set · timer only" else "${store.dailyLimitMinutes} minutes across all selected apps") { editLimit() })
-        section(body, "REMINDERS")
-        val warning = card()
-        warning.addView(toggle("Vibrate at the limit", store.vibration) { store.vibration = it })
-        warning.addView(text("One gentle nudge per day. The timer keeps going; your apps stay open.", 13f, muted))
-        warning.addView(toggle("Gentle tick every 10 minutes", store.tenMinuteTicks) { store.tenMinuteTicks = it })
-        warning.addView(text("At 10, 20, 30… minutes across selected apps. No catch-up pulses when enabled.", 13f, muted))
-        warning.addView(button("Test gentle tick") { testVibration(ReminderPolicy.Pulse.TICK) })
-        warning.addView(button("Test limit warning") { testVibration(ReminderPolicy.Pulse.LIMIT) })
-        warning.addView(text("Uses your phone's Notification vibration setting. Silent mode and Do Not Disturb can mute it. Test pulses don't change your timer or daily warning.", 13f, muted))
-        body.addView(warning)
         section(body, "FLOATING TIMER")
         val appearance = card()
         appearance.addView(text("Keep it in view", 18f))
@@ -99,11 +88,6 @@ class MainActivity : TrackerActivity() {
         body.addView(quiet)
         body.addView(text("Private by design. No account, internet access, or analytics.", 12f, muted))
         body.addView(buildIdentity())
-    }
-    private fun testVibration(pulse: ReminderPolicy.Pulse) {
-        val requested = ReminderVibration.play(this, pulse)
-        Toast.makeText(this, if (requested) "Pulse requested. No buzz? Check sound mode, Notification vibration, and Do Not Disturb."
-            else "This device has no vibrator.", Toast.LENGTH_LONG).show()
     }
     private fun setup() {
         val body = screen("A little setup.", "Two permissions, then you're ready.")
@@ -140,11 +124,6 @@ class MainActivity : TrackerActivity() {
             override fun onStopTrackingTouch(bar: SeekBar) {}
         })
     }
-    private fun toggle(label: String, value: Boolean, change: (Boolean) -> Unit) = Switch(this).apply {
-        text = label; textSize = 15f; setTextColor(ink); isChecked = value; setPadding(0, dp(8), 0, dp(8))
-        thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(accent, muted))
-        setOnCheckedChangeListener { _, checked -> change(checked) }
-    }
     private fun editLimit() {
         val content = card()
         content.addView(text("Your daily budget", 22f))
@@ -161,7 +140,6 @@ class MainActivity : TrackerActivity() {
             if (minutes == null || minutes !in 0..1440) input.error = "Enter 0–1440 minutes"
             else {
                 store.dailyLimitMinutes = minutes
-                if (minutes > 0 && store.combinedToday() >= minutes * 60_000L) store.markWarned(LocalDate.now().toString())
                 dialog.dismiss(); render()
             }
         })

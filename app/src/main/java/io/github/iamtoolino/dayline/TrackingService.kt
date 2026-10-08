@@ -77,7 +77,6 @@ class TrackingService : Service() {
         }
         val now = System.currentTimeMillis()
         val day = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate().toString()
-        val before = store.dailyTotal(day)
         val elapsed = SystemClock.elapsedRealtime()
         val gap = elapsed - lastElapsed
         // A suspension or clock jump is uncertain: don't inflate totals with an unobserved gap.
@@ -101,10 +100,6 @@ class TrackingService : Service() {
             val total = store.dailyTotal(day)
             val limit = store.dailyLimitMinutes * 60_000L
             val over = limit > 0 && total >= limit
-            val pulse = ReminderPolicy.choose(before, total, limit, store.vibration,
-                store.warned(day), store.tenMinuteTicks)
-            if (pulse == ReminderPolicy.Pulse.LIMIT) store.markWarned(day)
-            ReminderVibration.play(this, pulse)
             overlay.show("Selected apps", total, over)
         }
         status = if (pkg == null) "Ready · waiting for a selected app" else "Tracking ${label(pkg)}"
