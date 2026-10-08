@@ -19,6 +19,7 @@ class MainActivity : TrackerActivity() {
     private lateinit var total: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var preview: TimerOverlay? = null
+    private var previewTone = TimerTone.CYAN
     private var permissionsWereReady = false
     private val refresh = object : Runnable {
         override fun run() {
@@ -68,7 +69,7 @@ class MainActivity : TrackerActivity() {
         val previewButton = button("Position with preview") {}
         previewButton.setOnClickListener {
             if (preview != null) { preview?.hide(); preview = null; previewButton.setText(R.string.position_preview) }
-            else { preview = TimerOverlay(this, store); preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, false); previewButton.setText(R.string.done_positioning) }
+            else { previewTone = TimerTone.CYAN; preview = TimerOverlay(this, store); preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, TimerTone.CYAN); previewButton.setText(R.string.done_positioning) }
         }
         appearance.addView(previewButton)
         appearance.addView(text("Size", 13f, muted))
@@ -79,6 +80,22 @@ class MainActivity : TrackerActivity() {
             preview?.hide(); preview = null; previewButton.setText(R.string.position_preview); store.x = dp(16); store.y = dp(120)
         })
         body.addView(appearance)
+        section(body, "VISUAL REMINDERS")
+        val reminders = card()
+        reminders.addView(Switch(this).apply {
+            setText(R.string.milestone_animations); textSize = 17f; setTextColor(ink)
+            thumbTintList = ColorStateList.valueOf(accent)
+            isChecked = store.visualReminders
+            setOnCheckedChangeListener { _, checked ->
+                store.visualReminders = checked
+                if (!checked) preview?.stopAnimation()
+            }
+        })
+        reminders.addView(text("One halo at each tenth of your budget, at least two minutes apart. Amber from 70%. Two red halos at the limit, then every five more minutes of usage. Without a budget: one cyan halo every ten minutes.", 13f, muted))
+        reminders.addView(button("Preview cyan halo") { previewCue(TimerTone.CYAN) })
+        reminders.addView(button("Preview amber halo") { previewCue(TimerTone.AMBER) })
+        reminders.addView(button("Preview red halos") { previewCue(TimerTone.RED) })
+        body.addView(reminders)
         section(body, "STAY OUT OF THE WAY")
         val quiet = card()
         val notificationsEnabled = getSystemService(NotificationManager::class.java).areNotificationsEnabled()
@@ -88,6 +105,14 @@ class MainActivity : TrackerActivity() {
         body.addView(quiet)
         body.addView(text("Private by design. No account, internet access, or analytics.", 12f, muted))
         body.addView(buildIdentity())
+    }
+    private fun previewCue(tone: TimerTone) {
+        preview?.hide()
+        previewTone = tone
+        preview = TimerOverlay(this, store).also {
+            it.show("Preview", 600_000, tone)
+            it.animateCue(if (tone == TimerTone.RED) VisualCue.DOUBLE_HALO else VisualCue.HALO)
+        }
     }
     private fun setup() {
         val body = screen("A little setup.", "Two permissions, then you're ready.")
@@ -113,7 +138,7 @@ class MainActivity : TrackerActivity() {
     private fun openNotificationSettings() {
         openSettings(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
     }
-    private fun updatePreview() { preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, false) }
+    private fun updatePreview() { preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, previewTone) }
     private fun slider(min: Int, max: Int, value: Int, change: (Int) -> Unit) = SeekBar(this).apply {
         this.max = max - min; progress = value - min
         progressTintList = ColorStateList.valueOf(accent); thumbTintList = ColorStateList.valueOf(accent)

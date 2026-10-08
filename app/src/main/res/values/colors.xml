@@ -8,4 +8,5 @@
     <color name="dayline_control">#273E58</color>
     <color name="dayline_ripple">#308EE0E5</color>
     <color name="dayline_outline">#5A93A2</color>
+    <color name="dayline_over_limit">#F28C8C</color>
 </resources>

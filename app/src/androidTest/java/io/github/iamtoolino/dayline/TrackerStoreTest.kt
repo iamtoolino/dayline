@@ -36,6 +36,24 @@ class TrackerStoreTest {
         assertEquals(5000L, store.combinedToday())
         assertEquals(setOf("app.b"), store.selected)
     }
+    @Test fun visualReminderStateSurvivesRestartAndResetsWithHistory() {
+        val store = TrackerStore(context, name)
+        assertTrue(store.visualReminders)
+        store.visualReminders = false
+        val day = LocalDate.now().toString()
+        store.markVisualLimitShown(day)
+        store.markVisualCue(day, 600_000)
+        val restarted = TrackerStore(context, name)
+        assertFalse(restarted.visualReminders)
+        assertTrue(restarted.visualLimitShown(day))
+        assertEquals(600_000L, restarted.lastVisualCueAt(day))
+        assertEquals(-120_000L, restarted.lastVisualCueAt(LocalDate.now().plusDays(1).toString()))
+        assertFalse(restarted.visualLimitShown(LocalDate.now().plusDays(1).toString()))
+        restarted.clearUsage()
+        assertFalse(restarted.visualLimitShown(day))
+        assertEquals(-120_000L, restarted.lastVisualCueAt(day))
+        assertFalse(restarted.visualReminders)
+    }
     @Test fun historyDeletionPreservesSettingsAcrossRestart() {
         val store = TrackerStore(context, name)
         store.setSelected(setOf("app.a", "app.b")); store.dailyLimitMinutes = 30

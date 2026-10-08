@@ -22,6 +22,13 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
     var dailyLimitMinutes: Int
         get() = prefs.getInt("dailyLimitMinutes", 0)
         set(value) { prefs.edit().putInt("dailyLimitMinutes", value).apply() }
+    var visualReminders: Boolean
+        get() = prefs.getBoolean("visualReminders", true)
+        set(value) { prefs.edit().putBoolean("visualReminders", value).apply() }
+    fun visualLimitShown(day: String) = prefs.getBoolean("visualLimitShown:$day", false)
+    fun markVisualLimitShown(day: String) { prefs.edit().putBoolean("visualLimitShown:$day", true).apply() }
+    fun lastVisualCueAt(day: String) = prefs.getLong("visualCueAt:$day", -120_000)
+    fun markVisualCue(day: String, total: Long) { prefs.edit().putLong("visualCueAt:$day", total).apply() }
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", false)
         set(value) { prefs.edit().putBoolean("enabled", value).apply() }
@@ -62,7 +69,7 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
     }
     fun clearUsage() {
         val editor = prefs.edit()
-        prefs.all.keys.filter { it.startsWith("usage:") || it.startsWith("daily:") }.forEach(editor::remove)
+        prefs.all.keys.filter { it.startsWith("usage:") || it.startsWith("daily:") || it.startsWith("visualLimitShown:") || it.startsWith("visualCueAt:") }.forEach(editor::remove)
         editor.apply()
     }
 }
