@@ -15,12 +15,11 @@ android {
     namespace = "io.github.iamtoolino.dayline"
     compileSdk = 36
     defaultConfig {
-        // Keep the original install identity so upgrades retain settings, permissions, and history.
-        applicationId = "io.github.iamtoolino.brainrottracker"
+        applicationId = "io.github.iamtoolino.dayline"
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.3.3"
+        versionCode = 7
+        versionName = "0.3.4"
         buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -45,9 +45,9 @@ need dependency downloads; cached builds can use `--offline`.
 Settings shows the version, build number, Git commit, and build type. Modified
 source adds `-dirty`; builds without Git metadata show `source archive`.
 
-Source and tests use `io.github.iamtoolino.dayline`. The original Android installation
-ID is retained in the build configuration so existing installations keep their
-settings, permissions, history, and launcher shortcuts when upgraded.
+Source, tests, and the Android application ID use `io.github.iamtoolino.dayline`.
+Version 0.3.4 installs as a separate app from earlier prototypes. Existing prototype
+settings and history remain in the earlier installation and are not migrated automatically.
 
 ## Privacy
 
