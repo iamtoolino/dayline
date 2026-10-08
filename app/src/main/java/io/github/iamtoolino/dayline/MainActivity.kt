@@ -1,118 +1,111 @@
 package io.github.iamtoolino.dayline
 
 import android.app.AlertDialog
-import android.app.NotificationManager
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
+import android.view.Gravity
+import android.view.View
 import android.widget.*
 
 class MainActivity : TrackerActivity() {
     private lateinit var store: TrackerStore
     private lateinit var status: TextView
-    private lateinit var total: TextView
+    private lateinit var startButton: Button
+    private lateinit var trackingOptions: TextView
     private val handler = Handler(Looper.getMainLooper())
-    private var preview: TimerOverlay? = null
-    private var previewTone = TimerTone.CYAN
     private var permissionsWereReady = false
     private val refresh = object : Runnable {
         override fun run() {
             if (permissionsWereReady != Access.ready(this@MainActivity)) render()
-            if (permissionsWereReady) {
-                total.text = UsageLedger.format(store.combinedToday())
-                status.text = if (TrackingService.running) "Tracking is on" else "Tracking is off"
-            }
+            if (permissionsWereReady) updateTracking()
             handler.postDelayed(this, 1000)
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); store = TrackerStore(this) }
     override fun onResume() { super.onResume(); render(); handler.post(refresh) }
-    override fun onPause() { handler.removeCallbacks(refresh); preview?.hide(); preview = null; super.onPause() }
+    override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
 
     private fun render() {
         permissionsWereReady = Access.ready(this)
         if (!permissionsWereReady) { setup(); return }
-        val body = screen("A clearer line on your day.", "One timer for the apps you choose.")
+        val body = screen("Your day, in view.", "Track only the apps you choose.")
         val summary = card()
-        status = text(if (TrackingService.running) "Tracking is on" else "Tracking is off", 13f, accent)
-        total = text(UsageLedger.format(store.combinedToday()), 46f)
-        summary.addView(status); summary.addView(total)
-        summary.addView(text("Across selected apps today", 13f, muted))
-        summary.addView(button(if (TrackingService.running) "Pause tracking" else "Start tracking", primary = true) {
-            if (TrackingService.running) { store.enabled = false; stopService(Intent(this, TrackingService::class.java)) }
-            else if (store.selected.isEmpty()) startActivity(Intent(this, AppPickerActivity::class.java))
+        val trackingRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        status = text("", 16f, accent)
+        trackingRow.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        trackingOptions = text("⋮", 24f, muted).apply {
+            gravity = Gravity.CENTER
+            contentDescription = "Tracking options"
+            background = ripple(surface)
+            isClickable = true; isFocusable = true
+            setOnClickListener {
+                PopupMenu(this@MainActivity, this).apply {
+                    menu.add("Pause tracking")
+                    setOnMenuItemClickListener {
+                        store.enabled = false
+                        stopService(Intent(this@MainActivity, TrackingService::class.java))
+                        handler.postDelayed({ updateTracking() }, 250)
+                        true
+                    }
+                    show()
+                }
+            }
+        }
+        trackingRow.addView(trackingOptions, LinearLayout.LayoutParams(dp(48), dp(48)))
+        summary.addView(trackingRow)
+        startButton = button("Start tracking", primary = true) {
+            if (store.selected.isEmpty()) startActivity(Intent(this, AppPickerActivity::class.java))
             else {
                 store.enabled = true; startForegroundService(Intent(this, TrackingService::class.java))
+                handler.postDelayed({ updateTracking() }, 250)
             }
-            handler.postDelayed({ render() }, 250)
-        })
+        }
+        summary.addView(startButton)
+        updateTracking()
         body.addView(summary)
-        body.addView(setting("History", "Daily totals and app breakdowns") { startActivity(Intent(this, StatisticsActivity::class.java)) })
+        body.addView(setting("History", "Weekly graph and totals") { startActivity(Intent(this, StatisticsActivity::class.java)) })
         section(body, "YOUR APPS")
         val apps = card()
-        if (store.selected.isEmpty()) apps.addView(text("Pick the apps that pull you in.", 15f, muted))
+        if (store.selected.isEmpty()) apps.addView(text("Choose which apps to count.", 15f, muted))
         store.selected.sortedBy { label(it) }.forEach { apps.addView(appRow(it)) }
         apps.addView(button(if (store.selected.isEmpty()) "Choose apps" else "Edit selected apps") { startActivity(Intent(this, AppPickerActivity::class.java)) })
         body.addView(apps)
         section(body, "DAILY LIMIT")
-        body.addView(setting("One shared budget", if (store.dailyLimitMinutes == 0) "No limit set · timer only" else "${store.dailyLimitMinutes} minutes across all selected apps") { editLimit() })
+        body.addView(setting("Daily budget", if (store.dailyLimitMinutes == 0) "Timer only · no budget" else "${store.dailyLimitMinutes} minutes · shared across selected apps") { editLimit() })
         section(body, "FLOATING TIMER")
         val appearance = card()
-        appearance.addView(text("Keep it in view", 18f))
-        appearance.addView(text("Drag to position it. The same timer follows you between selected apps.", 13f, muted))
-        val previewButton = button("Position with preview") {}
-        previewButton.setOnClickListener {
-            if (preview != null) { preview?.hide(); preview = null; previewButton.setText(R.string.position_preview) }
-            else { previewTone = TimerTone.CYAN; preview = TimerOverlay(this, store); preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, TimerTone.CYAN); previewButton.setText(R.string.done_positioning) }
-        }
-        appearance.addView(previewButton)
+        appearance.addView(text("Drag the timer to position it.", 13f, muted))
         appearance.addView(text("Size", 13f, muted))
-        appearance.addView(slider(12, 24, store.textSize) { store.textSize = it; updatePreview() })
+        appearance.addView(slider(12, 24, store.textSize) { store.textSize = it; TimerDisplay.showCurrentTotal() })
         appearance.addView(text("Opacity", 13f, muted))
-        appearance.addView(slider(40, 100, store.opacity) { store.opacity = it; updatePreview() })
-        appearance.addView(button("Reset position") {
-            preview?.hide(); preview = null; previewButton.setText(R.string.position_preview); store.x = dp(16); store.y = dp(120)
-        })
-        body.addView(appearance)
-        section(body, "VISUAL REMINDERS")
-        val reminders = card()
-        reminders.addView(Switch(this).apply {
-            setText(R.string.milestone_animations); textSize = 17f; setTextColor(ink)
+        appearance.addView(slider(40, 100, store.opacity) { store.opacity = it; TimerDisplay.showCurrentTotal() })
+        appearance.addView(Switch(this).apply {
+            setText(R.string.timer_animations); textSize = 17f; setTextColor(ink)
             thumbTintList = ColorStateList.valueOf(accent)
             isChecked = store.visualReminders
             setOnCheckedChangeListener { _, checked ->
                 store.visualReminders = checked
-                if (!checked) preview?.stopAnimation()
+                if (checked) TimerDisplay.previewAnimation() else TimerDisplay.stopAnimation()
             }
         })
-        reminders.addView(text("One halo at each tenth of your budget, at least two minutes apart. Amber from 70%. Two red halos at the limit, then every five more minutes of usage. Without a budget: one cyan halo every ten minutes.", 13f, muted))
-        reminders.addView(button("Preview cyan halo") { previewCue(TimerTone.CYAN) })
-        reminders.addView(button("Preview amber halo") { previewCue(TimerTone.AMBER) })
-        reminders.addView(button("Preview red halos") { previewCue(TimerTone.RED) })
-        body.addView(reminders)
-        section(body, "STAY OUT OF THE WAY")
-        val quiet = card()
-        val notificationsEnabled = getSystemService(NotificationManager::class.java).areNotificationsEnabled()
-        quiet.addView(text(if (notificationsEnabled) "A quieter notification" else "Notifications are hidden", 18f))
-        quiet.addView(text(if (Build.VERSION.SDK_INT >= 33) "Turn off notifications in Android settings to hide the tracking notice. The floating timer still works." else "Android requires a tracking notification. You can make it silent in notification settings.", 13f, muted))
-        quiet.addView(button("Notification settings") { openNotificationSettings() })
-        body.addView(quiet)
+        appearance.addView(text("Brief halos mark your budget. Turn on to preview.", 13f, muted))
+        body.addView(appearance)
+        body.addView(setting("Notifications", "Manage in Android settings") { openNotificationSettings() })
         body.addView(text("Private by design. No account, internet access, or analytics.", 12f, muted))
         body.addView(buildIdentity())
     }
-    private fun previewCue(tone: TimerTone) {
-        preview?.hide()
-        previewTone = tone
-        preview = TimerOverlay(this, store).also {
-            it.show("Preview", 600_000, tone)
-            it.animateCue(if (tone == TimerTone.RED) VisualCue.DOUBLE_HALO else VisualCue.HALO)
-        }
+    private fun updateTracking() {
+        val running = TrackingService.running
+        status.text = if (running) "Tracking is on" else "Tracking is off"
+        status.setTextColor(if (running) accent else muted)
+        startButton.visibility = if (running) View.GONE else View.VISIBLE
+        trackingOptions.visibility = if (running) View.VISIBLE else View.GONE
     }
     private fun setup() {
         val body = screen("A little setup.", "Two permissions, then you're ready.")
@@ -138,7 +131,6 @@ class MainActivity : TrackerActivity() {
     private fun openNotificationSettings() {
         openSettings(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
     }
-    private fun updatePreview() { preview?.show("Selected apps", store.combinedToday().takeIf { it > 0 } ?: 754_000, previewTone) }
     private fun slider(min: Int, max: Int, value: Int, change: (Int) -> Unit) = SeekBar(this).apply {
         this.max = max - min; progress = value - min
         progressTintList = ColorStateList.valueOf(accent); thumbTintList = ColorStateList.valueOf(accent)

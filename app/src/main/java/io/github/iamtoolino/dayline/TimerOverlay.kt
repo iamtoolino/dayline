@@ -17,6 +17,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.LinearInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
 import android.widget.TextView
 import kotlin.math.roundToInt
 
@@ -40,6 +42,13 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
         PixelFormat.TRANSLUCENT
     ).apply { gravity = Gravity.TOP or Gravity.START; x = store.x; y = store.y }
     private var attached = false
+    private var visibleWanted = false
+    private var visibility = 0f
+    private var visibilityAnimator: ValueAnimator? = null
+    private val maximumTouchOpacity by lazy {
+        if (Build.VERSION.SDK_INT >= 31) context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch else 1f
+    }
+    private fun motionEnabled() = store.visualReminders && ValueAnimator.areAnimatorsEnabled()
     private var tone = TimerTone.CYAN
     private var originX = 0
     private var originY = 0
@@ -73,7 +82,7 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
                 )
                 ringBounds.inset(-spread, -spread)
                 ring.color = toneColor()
-                ring.alpha = (230 * (1 - phase)).roundToInt()
+                ring.alpha = (230 * (1 - phase) * this@TimerOverlay.visibility).roundToInt()
                 ring.strokeWidth = density * 2f
                 canvas.drawRoundRect(ringBounds, ringBounds.height() / 2, ringBounds.height() / 2, ring)
             }
@@ -114,6 +123,9 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
     fun show(label: String, ms: Long, tone: TimerTone) {
         if (this.tone != tone) stopAnimation()
         this.tone = tone
+        val appearing = !visibleWanted
+        visibleWanted = true
+        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         if (!attached) { params.x = store.x; params.y = store.y }
         pill.text = context.getString(R.string.today_timer, UsageLedger.format(ms))
         val state = when (tone) {
@@ -130,19 +142,20 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
             setStroke(dp(1), if (tone == TimerTone.CYAN) context.getColor(R.color.dayline_outline) else toneColor())
         }
         params.alpha = store.opacity / 100f
+        pill.alpha = visibility
         pill.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         clamp()
         if (!attached) { wm.addView(pill, params); attached = true }
         else wm.updateViewLayout(pill, params)
         if (haloAttached) updateHalo()
+        if (appearing) fadeTo(1f)
     }
     fun animateCue(next: VisualCue) {
-        if (next == VisualCue.NONE || !attached || !ValueAnimator.areAnimatorsEnabled()) return
+        if (next == VisualCue.NONE || !attached || !motionEnabled()) return
         stopAnimation()
         cue = next
         // Android 12+ requires a sufficiently transparent overlay to pass touches through it.
-        val maximum = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch else 1f
-        haloParams.alpha = minOf(store.opacity / 100f, maximum)
+        haloParams.alpha = minOf(store.opacity / 100f, maximumTouchOpacity)
         updateHalo()
         wm.addView(halo, haloParams); haloAttached = true
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -169,14 +182,69 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
     fun stopAnimation() {
         animator?.removeAllListeners(); animator?.cancel()
         finishAnimation()
+        if (!motionEnabled() && visibilityAnimator != null) {
+            cancelFade()
+            if (visibleWanted) { visibility = 1f; pill.alpha = 1f } else removePill()
+        }
     }
     private fun finishAnimation() {
         animator = null
         if (haloAttached) { wm.removeView(halo); haloAttached = false }
         cue = VisualCue.NONE; progress = 0f
     }
-    fun hide() {
-        stopAnimation()
+    private fun cancelFade() {
+        visibilityAnimator?.removeAllListeners()
+        visibilityAnimator?.cancel()
+        visibilityAnimator = null
+    }
+    private fun fadeTo(target: Float) {
+        cancelFade()
+        if (!attached) return
+        if (!motionEnabled() || visibility == target) {
+            visibility = target
+            applyVisibility()
+            if (target == 0f) removePill()
+            return
+        }
+        visibilityAnimator = ValueAnimator.ofFloat(visibility, target).apply {
+            duration = ((if (target == 1f) 220 else 160) * kotlin.math.abs(target - visibility)).toLong().coerceAtLeast(1)
+            interpolator = if (target == 1f) DecelerateInterpolator() else AccelerateInterpolator()
+            addUpdateListener {
+                visibility = it.animatedValue as Float
+                applyVisibility()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    visibilityAnimator = null
+                    if (!visibleWanted) removePill()
+                }
+            })
+            start()
+        }
+    }
+    private fun applyVisibility() {
+        if (!attached) return
+        val opacity = store.opacity / 100f * visibility
+        // Release input as soon as Android permits touch-through. This changes only opacity
+        // once; every animation frame otherwise uses view alpha without window relayout.
+        if (!visibleWanted && params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE == 0 && opacity <= maximumTouchOpacity) {
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            params.alpha = opacity.coerceAtLeast(.001f)
+            wm.updateViewLayout(pill, params)
+        }
+        pill.alpha = (opacity / params.alpha).coerceIn(0f, 1f)
+    }
+    private fun removePill() {
+        cancelFade()
         if (attached) { wm.removeView(pill); attached = false }
+        visibility = 0f
+        pill.alpha = 0f
+    }
+    fun hide(immediate: Boolean = false) {
+        stopAnimation()
+        if (immediate) { visibleWanted = false; removePill(); return }
+        if (!visibleWanted) return
+        visibleWanted = false
+        fadeTo(0f)
     }
 }

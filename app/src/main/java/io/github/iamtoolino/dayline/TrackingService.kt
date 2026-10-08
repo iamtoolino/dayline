@@ -12,7 +12,6 @@ import java.time.ZoneId
 /** Sole owner of usage writes. Stores each tick; never charges time while the service is absent. */
 class TrackingService : Service() {
     private lateinit var store: TrackerStore
-    private lateinit var overlay: TimerOverlay
     private val handler = Handler(Looper.getMainLooper())
     private var cursor = 0L
     private var lastElapsed = 0L
@@ -30,7 +29,6 @@ class TrackingService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = TrackerStore(this)
-        overlay = TimerOverlay(this, store)
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel("tracking", "Background tracking", NotificationManager.IMPORTANCE_LOW).apply {
                 setSound(null, null); enableVibration(false); setShowBadge(false)
@@ -96,18 +94,16 @@ class TrackingService : Service() {
         interactive = unlocked()
         cursor = now; lastElapsed = elapsed
         val pkg = active()
-        if (pkg == null) overlay.hide()
+        if (pkg == null) TimerDisplay.hideTracked()
         else {
             val total = store.dailyTotal(day)
             val limit = store.dailyLimitMinutes * 60_000L
-            overlay.show("Selected apps", total, VisualReminderPolicy.tone(total, limit))
-            if (!store.visualReminders) overlay.stopAnimation()
             val cue = VisualReminderPolicy.cue(before, total, limit, store.visualReminders, store.visualLimitShown(day), store.lastVisualCueAt(day))
             if (cue != VisualCue.NONE) {
                 store.markVisualCue(day, total)
                 if (limit > 0 && before < limit && total >= limit) store.markVisualLimitShown(day)
             }
-            overlay.animateCue(cue)
+            TimerDisplay.showTracked(this, total, VisualReminderPolicy.tone(total, limit), cue)
         }
         status = if (pkg == null) "Ready · waiting for a selected app" else "Tracking ${label(pkg)}"
 
@@ -128,7 +124,7 @@ class TrackingService : Service() {
             .build()
     }
     override fun onDestroy() {
-        handler.removeCallbacksAndMessages(null); overlay.hide(); running = false
+        handler.removeCallbacksAndMessages(null); TimerDisplay.hideTracked(); running = false
         if (!store.enabled) status = "Tracking off"
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()

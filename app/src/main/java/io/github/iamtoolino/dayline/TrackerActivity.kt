@@ -15,6 +15,8 @@ import android.widget.*
 
 /** Shared visual primitives for the three small, native screens. */
 open class TrackerActivity : Activity() {
+    override fun onStart() { super.onStart(); TimerDisplay.openScreen(this) }
+    override fun onStop() { TimerDisplay.closeScreen(); super.onStop() }
     protected val bg get() = getColor(R.color.dayline_background)
     protected val surface get() = getColor(R.color.dayline_surface)
     protected val ink get() = getColor(R.color.dayline_text)
