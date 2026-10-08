@@ -16,6 +16,13 @@ class TrackerStoreTest {
     @Before fun setup() { prefs.edit().clear().commit() }
     @After fun cleanup() { prefs.edit().clear().commit() }
 
+    @Test fun reminderPreferenceSurvivesRestartAndHistoryDeletion() {
+        val store = TrackerStore(context, name)
+        assertFalse(store.tenMinuteTicks)
+        store.tenMinuteTicks = true
+        store.clearUsage()
+        assertTrue(TrackerStore(context, name).tenMinuteTicks)
+    }
     @Test fun upgradePreservesAndCombinesExistingHistoryExactlyOnce() {
         val day = LocalDate.now().toString()
         prefs.edit().putLong("usage:$day:app.a", 30_000).putLong("usage:$day:app.b", 20_000)

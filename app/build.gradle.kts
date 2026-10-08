@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.iamtoolino.dayline"
         minSdk = 30
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.3.4"
+        versionCode = 8
+        versionName = "0.3.5"
         buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

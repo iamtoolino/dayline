@@ -6,7 +6,8 @@ import android.app.usage.UsageStatsManager
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.*
-import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 
 /** Sole owner of usage writes. Stores each tick; never charges time while the service is absent. */
 class TrackingService : Service() {
@@ -75,6 +76,8 @@ class TrackingService : Service() {
             status = "Tracking stopped — check permissions"; stopSelf(); return
         }
         val now = System.currentTimeMillis()
+        val day = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        val before = store.dailyTotal(day)
         val elapsed = SystemClock.elapsedRealtime()
         val gap = elapsed - lastElapsed
         // A suspension or clock jump is uncertain: don't inflate totals with an unobserved gap.
@@ -95,16 +98,13 @@ class TrackingService : Service() {
         val pkg = active()
         if (pkg == null) overlay.hide()
         else {
-            val total = store.combinedToday()
+            val total = store.dailyTotal(day)
             val limit = store.dailyLimitMinutes * 60_000L
             val over = limit > 0 && total >= limit
-            val day = LocalDate.now().toString()
-            if (over && !store.warned(day)) {
-                store.markWarned(day)
-                if (store.vibration) {
-                    getSystemService(Vibrator::class.java).vibrate(VibrationEffect.createOneShot(160, VibrationEffect.DEFAULT_AMPLITUDE))
-                }
-            }
+            val pulse = ReminderPolicy.choose(before, total, limit, store.vibration,
+                store.warned(day), store.tenMinuteTicks)
+            if (pulse == ReminderPolicy.Pulse.LIMIT) store.markWarned(day)
+            ReminderVibration.play(this, pulse)
             overlay.show("Selected apps", total, over)
         }
         status = if (pkg == null) "Ready · waiting for a selected app" else "Tracking ${label(pkg)}"

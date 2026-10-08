@@ -28,6 +28,9 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
     var vibration: Boolean
         get() = prefs.getBoolean("vibration", false)
         set(value) { prefs.edit().putBoolean("vibration", value).apply() }
+    var tenMinuteTicks: Boolean
+        get() = prefs.getBoolean("tenMinuteTicks", false)
+        set(value) { prefs.edit().putBoolean("tenMinuteTicks", value).apply() }
     var textSize: Int
         get() = prefs.getInt("textSize", 16)
         set(value) { prefs.edit().putInt("textSize", value).apply() }
@@ -42,7 +45,8 @@ class TrackerStore(context: Context, preferenceName: String = "tracker") {
         set(value) { prefs.edit().putInt("y", value).apply() }
     val selected: Set<String> get() = prefs.getStringSet("selected", emptySet())!!.toSet()
     fun setSelected(packages: Set<String>) { prefs.edit().putStringSet("selected", packages).apply() }
-    fun combinedToday() = prefs.getLong("daily:${LocalDate.now()}", 0)
+    fun combinedToday() = dailyTotal(LocalDate.now().toString())
+    fun dailyTotal(day: String) = prefs.getLong("daily:$day", 0)
     fun total(day: String, pkg: String) = prefs.getLong("usage:$day:$pkg", 0)
     fun add(pkg: String, start: Long, end: Long) {
         val editor = prefs.edit()
