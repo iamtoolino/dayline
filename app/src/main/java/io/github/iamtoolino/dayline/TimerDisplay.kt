@@ -21,6 +21,15 @@ object TimerDisplay {
     private var openScreens = 0
     private val screenOpen get() = openScreens > 0
     private val handler = Handler(Looper.getMainLooper())
+    private var hidePending = false
+    private val delayedHide = Runnable {
+        hidePending = false
+        if (!screenOpen) overlay?.hide(immediate = locked())
+    }
+    private fun cancelPendingHide() {
+        handler.removeCallbacks(delayedHide)
+        hidePending = false
+    }
     private val refresh = object : Runnable {
         override fun run() {
             if (!screenOpen) return
@@ -38,11 +47,14 @@ object TimerDisplay {
     }
     private fun timer(): TimerOverlay? {
         val context = context ?: return null
-        if (!Settings.canDrawOverlays(context)) { overlay?.hide(immediate = true); return null }
+        if (!Settings.canDrawOverlays(context)) {
+            cancelPendingHide(); overlay?.hide(immediate = true); return null
+        }
         return overlay ?: TimerOverlay(context, store!!).also { overlay = it }
     }
     fun openScreen(context: Context) {
         initialize(context)
+        cancelPendingHide()
         openScreens++
         handler.removeCallbacks(refresh)
         refresh.run()
@@ -55,6 +67,7 @@ object TimerDisplay {
     }
     fun showCurrentTotal() {
         if (!screenOpen) return
+        cancelPendingHide()
         val store = store ?: return
         val total = store.combinedToday()
         timer()?.show("Selected apps", total, VisualReminderPolicy.tone(total, store.dailyLimitMinutes * 60_000L))
@@ -68,6 +81,7 @@ object TimerDisplay {
     fun stopAnimation() { overlay?.stopAnimation() }
     fun showTracked(context: Context, total: Long, tone: TimerTone, cue: VisualCue) {
         initialize(context)
+        cancelPendingHide()
         // Dayline may remain started beside a selected app in split-screen.
         // Genuine milestones must still reach the same shared overlay.
         timer()?.let {
@@ -76,11 +90,22 @@ object TimerDisplay {
             it.animateCue(cue)
         }
     }
+    private fun locked(): Boolean {
+        val context = context ?: return true
+        return context.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
+            !context.getSystemService(PowerManager::class.java).isInteractive
+    }
     private fun hideOverlay() {
         val context = context ?: return
-        val locked = context.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
-            !context.getSystemService(PowerManager::class.java).isInteractive
-        overlay?.hide(immediate = locked)
+        if (locked() || !Settings.canDrawOverlays(context)) {
+            cancelPendingHide()
+            overlay?.hide(immediate = true)
+        } else if (!hidePending) {
+            // Bridge one tracking poll (1s) without extending usage accounting.
+            // Repeated hide requests must not postpone a genuine departure forever.
+            hidePending = true
+            handler.postDelayed(delayedHide, 1250)
+        }
     }
     fun hideTracked() { if (!screenOpen) hideOverlay() }
 }

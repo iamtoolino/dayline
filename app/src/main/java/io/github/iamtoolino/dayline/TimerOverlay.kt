@@ -48,7 +48,7 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
     private val maximumTouchOpacity by lazy {
         if (Build.VERSION.SDK_INT >= 31) context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch else 1f
     }
-    private fun motionEnabled() = store.visualReminders && ValueAnimator.areAnimatorsEnabled()
+    private fun motionEnabled() = ValueAnimator.areAnimatorsEnabled()
     private var tone = TimerTone.CYAN
     private var originX = 0
     private var originY = 0
@@ -151,7 +151,7 @@ class TimerOverlay(private val context: Context, private val store: TrackerStore
         if (appearing) fadeTo(1f)
     }
     fun animateCue(next: VisualCue) {
-        if (next == VisualCue.NONE || !attached || !motionEnabled()) return
+        if (next == VisualCue.NONE || !attached || !store.visualReminders || !motionEnabled()) return
         stopAnimation()
         cue = next
         // Android 12+ requires a sufficiently transparent overlay to pass touches through it.

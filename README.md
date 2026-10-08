@@ -43,16 +43,18 @@ Ordinary reminders are at least two minutes apart; crowded milestones are skippe
 The exact limit takes priority. Without a budget, one cyan halo marks ten-minute
 usage intervals.
 
-The capsule fades in and out without moving or changing size. Rapid switches reverse
-the fade smoothly, and screen locking hides it immediately. Turning Animations off
-also disables these fades.
+The capsule fades in and out without moving or changing size. A brief hide delay
+bridges app switches without adding tracked time. Rapid returns cancel hiding or
+reverse an in-progress fade; screen locking and permission loss hide it immediately.
+Turning milestone halos off keeps these fades; Android's system animation setting
+still applies.
 
 The timer never grows, pulses, or adds a warning label. Only the surrounding halo
 animates; it passes taps through to the app beneath. No sound, vibration, or
 blocking is involved. Android's animation settings are respected.
 
 Reminders fire only on usage crossings, with no replay after app switches or
-tracker restarts. State resets at local midnight. The Animations switch lives with the timer
+tracker restarts. State resets at local midnight. The Milestone halos switch lives with the timer
 appearance controls; turning it on previews the current halo without changing
 usage totals or reminder history. Real reminders also play while Dayline is visible
 beside a selected app in split-screen.
@@ -89,14 +91,16 @@ inside the app. No Accessibility Service is required.
 
 - Force-stop or reboot requires reopening Dayline and starting monitoring again.
 - Service downtime, clock jumps, and polling gaps over five seconds are not counted.
-- Split-screen tracks the latest resumed app. Picture-in-picture, system panels,
-  and manufacturer battery restrictions need broader device testing.
+- Split-screen tracks the most recently resumed activity that remains visible.
+  Picture-in-picture, system panels, and manufacturer battery restrictions need
+  broader device testing.
 - Sensitive screens can suppress floating overlays.
 - The interface is currently English only; builds are local debug APKs.
 
 The implementation uses native Android views, a foreground tracking service,
 local preferences, and a small usage ledger. Unit tests cover midnight, daylight-saving
-transitions, duration formatting, reminder thresholds, and calendar weeks.
+transitions, duration formatting, reminder thresholds, calendar weeks, and restoration
+after cancelled navigation gestures.
 Instrumentation tests cover accounting, persistence, history migration/deletion,
 overlay fades, visible halos, and reminder delivery while Dayline is open.
 

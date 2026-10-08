@@ -102,31 +102,61 @@ class TimerOverlayTest {
             } finally { bitmap.recycle() }
         }
     }
+    private fun withSharedDisplay(action: () -> Unit) {
+        val fields = listOf("overlay", "context", "store", "openScreens").associateWith {
+            TimerDisplay::class.java.getDeclaredField(it).apply { isAccessible = true }
+        }
+        val saved = fields.mapValues { it.value.get(TimerDisplay) }
+        main {
+            fields.getValue("overlay").set(TimerDisplay, overlay)
+            fields.getValue("context").set(TimerDisplay, context.applicationContext)
+            fields.getValue("store").set(TimerDisplay, store)
+            fields.getValue("openScreens").set(TimerDisplay, 0)
+        }
+        try { action() } finally {
+            main {
+                TimerDisplay.closeScreen()
+                TimerDisplay::class.java.getDeclaredMethod("cancelPendingHide").apply {
+                    isAccessible = true
+                }.invoke(TimerDisplay)
+                overlay.hide(immediate = true)
+                fields.forEach { (name, field) -> field.set(TimerDisplay, saved[name]) }
+            }
+        }
+    }
     @Test fun genuineLimitCuePlaysWhileDaylineScreenIsStarted() {
         assumeTrue(ValueAnimator.areAnimatorsEnabled())
-        main {
-            // Isolate the singleton from the real settings/history while exercising
-            // the same started-screen + service path used by split-screen.
-            val fields = listOf("overlay", "context", "store", "openScreens").associateWith {
-                TimerDisplay::class.java.getDeclaredField(it).apply { isAccessible = true }
-            }
-            val saved = fields.mapValues { it.value.get(TimerDisplay) }
-            try {
-                fields.getValue("overlay").set(TimerDisplay, overlay)
-                fields.getValue("context").set(TimerDisplay, context.applicationContext)
-                fields.getValue("store").set(TimerDisplay, store)
-                fields.getValue("openScreens").set(TimerDisplay, 0)
+        withSharedDisplay {
+            main {
                 TimerDisplay.openScreen(context)
                 TimerDisplay.showTracked(context, 600_000, TimerTone.RED, VisualCue.DOUBLE_HALO)
                 val cue = TimerOverlay::class.java.getDeclaredField("cue").apply { isAccessible = true }
                 val tone = TimerOverlay::class.java.getDeclaredField("tone").apply { isAccessible = true }
                 assertEquals(VisualCue.DOUBLE_HALO, cue.get(overlay))
                 assertEquals(TimerTone.RED, tone.get(overlay))
-            } finally {
-                TimerDisplay.closeScreen()
-                overlay.hide(immediate = true)
-                fields.forEach { (name, field) -> field.set(TimerDisplay, saved[name]) }
             }
+        }
+    }
+    @Test fun appSwitchGapKeepsCapsuleVisibleAndCancelsPendingHide() {
+        assumeTrue(ValueAnimator.areAnimatorsEnabled())
+        store.visualReminders = false
+        withSharedDisplay {
+            main { TimerDisplay.openScreen(context) }
+            awaitMain { pill.isAttachedToWindow && pill.alpha >= .99f }
+            main { TimerDisplay.closeScreen() }
+            Thread.sleep(1000) // Actual tracking cadence, rather than a 40ms interruption.
+            main {
+                assertTrue(pill.isAttachedToWindow)
+                assertEquals(1f, pill.alpha, .01f)
+                TimerDisplay.showTracked(context, 600_000, TimerTone.CYAN, VisualCue.NONE)
+            }
+            Thread.sleep(1500) // A cancelled hide must not fire later in the selected app.
+            main {
+                assertTrue(pill.isAttachedToWindow)
+                assertEquals(1f, pill.alpha, .01f)
+                TimerDisplay.hideTracked()
+            }
+            awaitMain { !pill.isAttachedToWindow }
         }
     }
     @Test fun immediateHideCancelsAnInFlightAppearance() {
@@ -138,18 +168,23 @@ class TimerOverlayTest {
         Thread.sleep(300)
         main { assertFalse(pill.isAttachedToWindow) }
     }
-    @Test fun disabledAnimationsShowAndRemoveSynchronously() {
+    @Test fun disabledHalosStillFadeAndCannotPlayCues() {
+        assumeTrue(ValueAnimator.areAnimatorsEnabled())
         store.visualReminders = false
         main {
             overlay.show("Test", 600_000, TimerTone.RED)
-            assertEquals(1f, pill.alpha, .01f)
-            overlay.hide()
-            assertFalse(pill.isAttachedToWindow)
-            overlay.show("Test", 600_000, TimerTone.RED)
-            assertEquals(1f, pill.alpha, .01f)
+            assertEquals(0f, pill.alpha, .01f)
+            overlay.animateCue(VisualCue.DOUBLE_HALO)
+            overlay.stopAnimation() // Toggling halos off must not finish the fade.
+            assertEquals(0f, pill.alpha, .01f)
+            val cue = TimerOverlay::class.java.getDeclaredField("cue").apply { isAccessible = true }
+            assertEquals(VisualCue.NONE, cue.get(overlay))
         }
-        // addView attaches during the next traversal, even with motion disabled.
-        Thread.sleep(100)
-        main { assertTrue(pill.isAttachedToWindow) }
+        awaitMain { pill.isAttachedToWindow && pill.alpha >= .99f }
+        main {
+            overlay.hide()
+            assertTrue(pill.isAttachedToWindow)
+        }
+        awaitMain { !pill.isAttachedToWindow }
     }
 }

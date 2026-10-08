@@ -15,7 +15,7 @@ class TrackingService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var cursor = 0L
     private var lastElapsed = 0L
-    private var foreground: String? = null
+    private val activities = VisibleActivities()
     private var interactive = false
     private val tick = object : Runnable {
         override fun run() {
@@ -60,14 +60,16 @@ class TrackingService : Service() {
 
     private fun transition(event: UsageEvents.Event) {
         when (event.eventType) {
-            UsageEvents.Event.ACTIVITY_RESUMED -> foreground = event.packageName
-            UsageEvents.Event.ACTIVITY_PAUSED -> if (foreground == event.packageName) foreground = null
+            UsageEvents.Event.ACTIVITY_RESUMED -> activities.resume(event.packageName, event.className)
+            // A cancelled navigation gesture may pause the app without resuming it again.
+            // Keep visible activities so a temporary launcher's stop reveals the app beneath.
+            UsageEvents.Event.ACTIVITY_STOPPED -> activities.stop(event.packageName, event.className)
             UsageEvents.Event.SCREEN_NON_INTERACTIVE, UsageEvents.Event.KEYGUARD_SHOWN -> interactive = false
             UsageEvents.Event.SCREEN_INTERACTIVE, UsageEvents.Event.KEYGUARD_HIDDEN -> interactive = true
-            UsageEvents.Event.DEVICE_SHUTDOWN, UsageEvents.Event.DEVICE_STARTUP -> { foreground = null; interactive = false }
+            UsageEvents.Event.DEVICE_SHUTDOWN, UsageEvents.Event.DEVICE_STARTUP -> { activities.clear(); interactive = false }
         }
     }
-    private fun active(): String? = foreground?.takeIf { interactive && it in store.selected }
+    private fun active(): String? = activities.foreground?.takeIf { interactive && it in store.selected }
     private fun account(start: Long, end: Long) { active()?.let { if (end > start) store.add(it, start, end) } }
     private fun update() {
         if (!store.enabled || !Access.ready(this)) {

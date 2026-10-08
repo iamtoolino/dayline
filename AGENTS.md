@@ -26,6 +26,8 @@ logs, APKs, generated audits, or temporary experiments. Keep diagnostics in
 
 - `TrackingService` owns usage accounting; avoid duplicate writers, stale events,
   counting screen-off time, service downtime, or gaps across clock changes.
+- `VisibleActivities` owns activity visibility. A pause is not an exit; cancelled
+  navigation gestures must restore the still-visible app after the launcher stops.
 - `UsageLedger` owns time splitting, including local midnight and DST.
 - `TrackerStore` preserves selected apps, budget, settings, and historical usage
   through upgrades and migrations.
